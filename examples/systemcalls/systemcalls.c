@@ -1,5 +1,8 @@
 #include "systemcalls.h"
-
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -16,8 +19,9 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    bool test = system(cmd);
 
-    return true;
+    return test;
 }
 
 /**
@@ -47,7 +51,25 @@ bool do_exec(int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+  //  command[count] = command[count];
+
+    int status;
+    int pid = fork();
+    if (pid == -1)
+    {
+        va_end(args);
+	    return false;
+    }
+    else if (pid == 0)
+    {
+	    execv (command[0], command);
+	    exit (1);
+    }
+    if (waitpid(pid, &status, 0) == -1 || WEXITSTATUS(status) != 0) 
+    {
+        va_end(args);
+        return false;
+    }
 
 /*
  * TODO:
@@ -82,7 +104,28 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    
+    int status;
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if (fd < 0) { return false; }
+    int pid = fork();
+    if (pid == -1){
+       va_end(args);
+       return false;
+    }
+    else if (pid == 0)
+    {
+	    if (dup2(fd, 1) < 0)  return false;
+	    close(fd);
+	    execv(command[0], command);
+	    exit(1);
+    }
+    close(fd);
+    if (waitpid(pid, &status, 0) == -1 || WEXITSTATUS(status) != 0)
+    {
+	    va_end(args);
+	    return false;
+    }
 
 
 /*
@@ -92,6 +135,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+
 
     va_end(args);
 
